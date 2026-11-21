@@ -1,0 +1,16 @@
+{
+  "name": "فویل البرز — سیستم تولید",
+  "short_name": "فویل البرز",
+  "description": "سیستم مدیریت تولید فویل و سپراتور",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1B4F8A",
+  "theme_color": "#1B4F8A",
+  "lang": "fa",
+  "dir": "rtl",
+  "icons": [
+    {"src": "https://placehold.co/192x192/1B4F8A/fff?text=FA", "sizes": "192x192", "type": "image/png"},
+    {"src": "https://placehold.co/512x512/1B4F8A/fff?text=FA", "sizes": "512x512", "type": "image/png"}
+  ]
+}

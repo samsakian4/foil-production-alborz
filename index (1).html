@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>سیستم تولید فویل البرز</title>
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --primary:#1B4F8A;--primary-dark:#0d2d52;--accent:#E8A020;
+    --bg:#f0f4f8;--card:#fff;--text:#1a2332;--muted:#6b7a8d;
+    --border:#d1dbe8;--success:#27ae60;--danger:#e74c3c;--warning:#f39c12;
+    --radius:12px;--shadow:0 2px 12px rgba(27,79,138,.12);
+  }
+  html,body{height:100%;overflow:hidden;font-family:'Vazirmatn',sans-serif;font-size:16px;background:var(--bg);color:var(--text)}
+
+  /* ===== LOGIN OVERLAY ===== */
+  #login-overlay{
+    display:none; /* hidden by default — JS shows it when no session */
+    position:fixed;inset:0;
+    background:linear-gradient(135deg,var(--primary),var(--primary-dark));
+    align-items:center;justify-content:center;
+    z-index:9999;
+  }
+  #login-overlay.active{display:flex}
+  .login-box{
+    background:#fff;border-radius:var(--radius);
+    padding:36px 32px;width:min(360px,90vw);
+    box-shadow:0 8px 40px rgba(0,0,0,.3);
+  }
+  .login-logo{text-align:center;margin-bottom:24px}
+  .login-logo h1{font-size:1.4rem;color:var(--primary);font-weight:700}
+  .login-logo p{font-size:.85rem;color:var(--muted);margin-top:4px}
+  .form-group{margin-bottom:16px}
+  .form-group label{display:block;font-size:.85rem;font-weight:600;color:var(--muted);margin-bottom:6px}
+  .form-group input{
+    width:100%;border:1.5px solid var(--border);border-radius:8px;
+    padding:11px 14px;font-family:inherit;font-size:.95rem;
+    transition:border-color .2s;outline:none;
+  }
+  .form-group input:focus{border-color:var(--primary)}
+  .btn-login{
+    width:100%;background:var(--primary);color:#fff;border:none;
+    border-radius:8px;padding:13px;font-family:inherit;font-size:1rem;
+    font-weight:600;cursor:pointer;transition:background .2s;
+  }
+  .btn-login:hover{background:var(--primary-dark)}
+  .btn-login:disabled{opacity:.6;cursor:not-allowed}
+  #login-error{color:var(--danger);font-size:.85rem;margin-top:12px;text-align:center;display:none}
+
+  /* ===== APP SHELL ===== */
+  #app{
+    display:none; /* hidden by default — JS shows it after auth */
+    flex-direction:column;height:100vh;overflow:hidden;
+  }
+  #app.active{display:flex}
+
+  /* Header */
+  header{
+    background:linear-gradient(135deg,var(--primary),var(--primary-dark));
+    color:#fff;padding:12px 16px;
+    display:flex;align-items:center;justify-content:space-between;
+    flex-shrink:0;min-height:56px;
+  }
+  .header-title{font-size:1rem;font-weight:700}
+  .header-sub{font-size:.75rem;opacity:.8;margin-top:2px}
+  .header-actions{display:flex;align-items:center;gap:10px}
+  .user-badge{font-size:.8rem;opacity:.85}
+  .btn-logout{
+    background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);
+    color:#fff;border-radius:6px;padding:5px 12px;
+    font-family:inherit;font-size:.8rem;cursor:pointer;
+  }
+
+  /* Navigation */
+  nav{
+    background:#fff;border-bottom:1px solid var(--border);
+    display:flex;overflow-x:auto;flex-shrink:0;
+    scrollbar-width:none;-webkit-overflow-scrolling:touch;
+  }
+  nav::-webkit-scrollbar{display:none}
+  .tab-btn{
+    flex:0 0 auto;padding:12px 16px;
+    border:none;background:transparent;
+    font-family:inherit;font-size:.82rem;font-weight:500;
+    color:var(--muted);cursor:pointer;white-space:nowrap;
+    border-bottom:3px solid transparent;transition:all .2s;
+  }
+  .tab-btn.active{color:var(--primary);border-bottom-color:var(--primary);font-weight:700}
+
+  /* Main content */
+  main{flex:1;overflow-y:auto;padding:16px;-webkit-overflow-scrolling:touch}
+
+  /* Cards */
+  .card{background:var(--card);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);margin-bottom:16px}
+  .card-title{font-size:1rem;font-weight:700;color:var(--primary);margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+
+  /* Stats grid */
+  .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px}
+  .stat-card{
+    background:var(--card);border-radius:var(--radius);padding:16px;
+    box-shadow:var(--shadow);text-align:center;
+  }
+  .stat-num{font-size:1.8rem;font-weight:700;color:var(--primary)}
+  .stat-label{font-size:.78rem;color:var(--muted);margin-top:4px}
+
+  /* Forms */
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+  .form-row.single{grid-template-columns:1fr}
+  .form-row.triple{grid-template-columns:1fr 1fr 1fr}
+  @media(max-width:480px){
+    .form-row{grid-template-columns:1fr}
+    .form-row.triple{grid-template-columns:1fr 1fr}
+    .stats-grid{grid-template-columns:1fr 1fr}
+  }
+  .fld{display:flex;flex-direction:column;gap:4px}
+  .fld label{font-size:.8rem;font-weight:600;color:var(--muted)}
+  .fld input,.fld select,.fld textarea{
+    border:1.5px solid var(--border);border-radius:8px;
+    padding:9px 12px;font-family:inherit;font-size:.9rem;
+    outline:none;transition:border-color .2s;background:#fff;
+  }
+  .fld input:focus,.fld select:focus,.fld textarea:focus{border-color:var(--primary)}
+  .fld textarea{resize:vertical;min-height:70px}
+
+  /* Buttons */
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    border:none;border-radius:8px;padding:10px 20px;
+    font-family:inherit;font-size:.9rem;font-weight:600;cursor:pointer;transition:all .2s;
+  }
+  .btn-primary{background:var(--primary);color:#fff}
+  .btn-primary:hover{background:var(--primary-dark)}
+  .btn-success{background:var(--success);color:#fff}
+  .btn-danger{background:var(--danger);color:#fff}
+  .btn-sm{padding:6px 14px;font-size:.8rem}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+
+  /* Tables */
+  .table-wrap{overflow-x:auto;border-radius:8px}
+  table{width:100%;border-collapse:collapse;min-width:500px}
+  th{background:var(--primary);color:#fff;padding:10px 12px;font-size:.82rem;font-weight:600;text-align:right}
+  td{padding:9px 12px;font-size:.82rem;border-bottom:1px solid var(--border)}
+  tr:last-child td{border-bottom:none}
+  tr:nth-child(even){background:#f8fafc}
+  tr:hover{background:#eef4ff}
+
+  /* Badges */
+  .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.75rem;font-weight:600}
+  .badge-a{background:#dbeafe;color:#1e40af}
+  .badge-b{background:#fef9c3;color:#854d0e}
+  .badge-c{background:#ede9fe;color:#5b21b6}
+  .badge-ok{background:#dcfce7;color:#166534}
+  .badge-warn{background:#fef3c7;color:#92400e}
+
+  /* Tabs content */
+  .tab-content{display:none}
+  .tab-content.active{display:block}
+
+  /* Section header with action */
+  .sec-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px}
+  .sec-head h2{font-size:1rem;font-weight:700;color:var(--primary)}
+
+  /* Toast */
+  #toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+    background:#1a2332;color:#fff;border-radius:8px;
+    padding:12px 24px;font-size:.9rem;z-index:10000;
+    opacity:0;transition:opacity .3s;pointer-events:none;
+    max-width:90vw;text-align:center;
+  }
+  #toast.show{opacity:1}
+
+  /* Loading */
+  .loading{text-align:center;padding:40px;color:var(--muted)}
+  .spinner{
+    width:36px;height:36px;border:3px solid var(--border);
+    border-top-color:var(--primary);border-radius:50%;
+    animation:spin .8s linear infinite;margin:0 auto 12px;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* Section divider */
+  .section-sep{border:none;border-top:1px solid var(--border);margin:20px 0}
+
+  /* Mobile bottom nav — alternative nav for very small screens */
+  @media(max-width:380px){
+    .tab-btn{padding:10px 12px;font-size:.78rem}
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN OVERLAY — hidden via CSS, shown via JS class -->
+<div id="login-overlay">
+  <div class="login-box">
+    <div class="login-logo">
+      <h1>🏭 فویل البرز</h1>
+      <p>سیستم مدیریت تولید</p>
+    </div>
+    <div class="form-group">
+      <label>ایمیل</label>
+      <input type="email" id="login-email" placeholder="email@example.com" autocomplete="username">
+    </div>
+    <div class="form-group">
+      <label>رمز عبور</label>
+      <input type="password" id="login-pass" placeholder="رمز عبور" autocomplete="current-password">
+    </div>
+    <button class="btn-login" id="login-btn" onclick="doLogin()">ورود به سیستم</button>
+    <div id="login-error">ایمیل یا رمز عبور اشتباه است</div>
+  </div>
+</div>
+
+<!-- MAIN APP — hidden via CSS, shown via JS class after auth -->
+<div id="app">
+  <header>
+    <div>
+      <div class="header-title">فویل البرز</div>
+      <div class="header-sub" id="header-date"></div>
+    </div>
+    <div class="header-actions">
+      <span class="user-badge" id="user-name"></span>
+      <button class="btn-logout" onclick="doLogout()">خروج</button>
+    </div>
+  </header>
+
+  <nav id="main-nav">
+    <button class="tab-btn active" onclick="switchTab('dashboard',this)">📊 داشبورد</button>
+    <button class="tab-btn" onclick="switchTab('coil',this)">🏷️ شناسنامه کویل</button>
+    <button class="tab-btn" onclick="switchTab('rolling',this)">⚙️ گزارش نورد</button>
+    <button class="tab-btn" onclick="switchTab('separator',this)">📋 گزارش سپراتور</button>
+    <button class="tab-btn" onclick="switchTab('stoppage',this)">🛑 توقفات</button>
+    <button class="tab-btn" onclick="switchTab('reports',this)">📈 گزارشات</button>
+    <button class="tab-btn" onclick="switchTab('history',this)">🕒 تاریخچه</button>
+  </nav>
+
+  <main>
+    <!-- DASHBOARD -->
+    <div id="tab-dashboard" class="tab-content active">
+      <div class="stats-grid" id="dash-stats">
+        <div class="stat-card"><div class="stat-num" id="stat-coils">—</div><div class="stat-label">کویل ثبت‌شده</div></div>
+        <div class="stat-card"><div class="stat-num" id="stat-rolling">—</div><div class="stat-label">گزارش نورد امروز</div></div>
+        <div class="stat-card"><div class="stat-num" id="stat-sep">—</div><div class="stat-label">گزارش سپراتور امروز</div></div>
+        <div class="stat-card"><div class="stat-num" id="stat-stop">—</div><div class="stat-label">توقف ثبت‌شده</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">آخرین گزارش‌های نورد</div>
+        <div class="table-wrap"><table><thead><tr><th>تاریخ</th><th>شیفت</th><th>ماشین</th><th>کویل</th><th>اپراتور</th></tr></thead>
+        <tbody id="dash-rolling"></tbody></table></div>
+      </div>
+      <div class="card">
+        <div class="card-title">آخرین گزارش‌های سپراتور</div>
+        <div class="table-wrap"><table><thead><tr><th>تاریخ</th><th>شیفت</th><th>ماشین</th><th>کویل</th><th>وزن خروجی</th></tr></thead>
+        <tbody id="dash-sep"></tbody></table></div>
+      </div>
+    </div>
+
+    <!-- COIL ID -->
+    <div id="tab-coil" class="tab-content">
+      <div class="sec-head">
+        <h2>شناسنامه کویل</h2>
+        <button class="btn btn-primary btn-sm" onclick="toggleCoilForm()">➕ ثبت کویل جدید</button>
+      </div>
+      <div id="coil-form-wrap" style="display:none">
+        <div class="card">
+          <div class="card-title">ثبت کویل جدید</div>
+          <div class="form-row">
+            <div class="fld"><label>شماره کویل *</label><input id="c-num" placeholder="مثال: C-1403-001"></div>
+            <div class="fld"><label>شماره سفارش</label><input id="c-order" placeholder="شماره سفارش"></div>
+          </div>
+          <div class="form-row triple">
+            <div class="fld"><label>آلیاژ</label><input id="c-alloy" placeholder="1235"></div>
+            <div class="fld"><label>ضخامت ورودی (mm)</label><input id="c-thick-in" type="number" step="0.001"></div>
+            <div class="fld"><label>عرض (mm)</label><input id="c-width" type="number"></div>
+          </div>
+          <div class="form-row triple">
+            <div class="fld"><label>وزن ورودی (kg)</label><input id="c-wt-in" type="number" step="0.1"></div>
+            <div class="fld"><label>سختی</label><input id="c-hard" placeholder="H18 / O"></div>
+            <div class="fld"><label>نوع محصول</label>
+              <select id="c-type"><option value="">انتخاب کنید</option><option>هاردبند</option><option>نرم بند</option><option>فویل خانگی</option><option>فویل صنعتی</option></select>
+            </div>
+          </div>
+          <hr class="section-sep">
+          <div class="card-title" style="font-size:.88rem">آنالیز شیمیایی (اختیاری)</div>
+          <div class="form-row triple">
+            <div class="fld"><label>Fe %</label><input id="c-fe" type="number" step="0.001"></div>
+            <div class="fld"><label>Si %</label><input id="c-si" type="number" step="0.001"></div>
+            <div class="fld"><label>Mn %</label><input id="c-mn" type="number" step="0.001"></div>
+          </div>
+          <div class="form-row triple">
+            <div class="fld"><label>Cu %</label><input id="c-cu" type="number" step="0.001"></div>
+            <div class="fld"><label>UTS (MPa)</label><input id="c-uts" type="number"></div>
+            <div class="fld"><label>Elongation %</label><input id="c-elong" type="number" step="0.1"></div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:12px">
+            <button class="btn btn-primary" onclick="saveCoil()">💾 ذخیره</button>
+            <button class="btn" style="background:var(--border);color:var(--text)" onclick="toggleCoilForm()">انصراف</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">لیست کویل‌ها</div>
+        <div class="table-wrap"><table><thead><tr><th>شماره کویل</th><th>آلیاژ</th><th>ضخامت</th><th>عرض</th><th>وزن</th><th>نوع</th></tr></thead>
+        <tbody id="coil-list"></tbody></table></div>
+      </div>
+    </div>
+
+    <!-- ROLLING REPORT -->
+    <div id="tab-rolling" class="tab-content">
+      <div class="sec-head">
+        <h2>گزارش نورد</h2>
+        <button class="btn btn-primary btn-sm" onclick="toggleRollingForm()">➕ ثبت گزارش</button>
+      </div>
+      <div id="rolling-form-wrap" style="display:none">
+        <div class="card">
+          <div class="card-title">ثبت گزارش نورد</div>
+          <div class="form-row triple">
+            <div class="fld"><label>تاریخ *</label><input id="r-date" type="date"></div>
+            <div class="fld"><label>شیفت *</label>
+              <select id="r-shift"><option value="">انتخاب</option><option value="A">A — صبح</option><option value="B">B — عصر</option><option value="C">C — شب</option></select>
+            </div>
+            <div class="fld"><label>ماشین *</label>
+              <select id="r-machine"><option value="">انتخاب</option><option>Q2</option><option>Q3</option><option>Q4</option><option>Q5</option><option>دوپلر 1</option></select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="fld"><label>شماره کویل *</label><input id="r-coil" placeholder="شماره کویل"></div>
+            <div class="fld"><label>اپراتور اول</label><input id="r-op1" placeholder="نام اپراتور"></div>
+          </div>
+          <div class="form-row">
+            <div class="fld"><label>اپراتور دوم</label><input id="r-op2" placeholder="نام دستیار"></div>
+            <div class="fld"></div>
+          </div>
+          <hr class="section-sep">
+          <div class="form-row triple">
+            <div class="fld"><label>ضخامت ورودی (mm)</label><input id="r-thick-in" type="number" step="0.001"></div>
+            <div class="fld"><label>ضخامت خروجی (mm)</label><input id="r-thick-out" type="number" step="0.001"></div>
+            <div class="fld"><label>عرض ورودی (mm)</label><input id="r-width-in" type="number"></div>
+          </div>
+          <div class="form-row triple">
+            <div class="fld"><label>عرض خروجی (mm)</label><input id="r-width-out" type="number"></div>
+            <div class="fld"><label>وزن ورودی (kg)</label><input id="r-wt-in" type="number" step="0.1"></div>
+            <div class="fld"><label>وزن خروجی (kg)</label><input id="r-wt-out" type="number" step="0.1"></div>
+          </div>
+          <div class="form-row triple">
+            <div class="fld"><label>اسکراپ (kg)</label><input id="r-scrap" type="number" step="0.1"></div>
+            <div class="fld"><label>ساعت شروع</label><input id="r-start" type="time"></div>
+            <div class="fld"><label>ساعت پایان</label><input id="r-end" type="time"></div>
+          </div>
+          <div class="form-row">
+            <div class="fld"><label>مدت توقف (دقیقه)</label><input id="r-stopmin" type="number"></div>
+            <div class="fld"><label>کد توقف</label><input id="r-stopcode" placeholder="کد علت توقف"></div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:12px">
+            <button class="btn btn-primary" onclick="saveRolling()">💾 ذخیره گزارش</button>
+            <button class="btn" style="background:var(--border);color:var(--text)" onclick="toggleRollingForm()">انصراف</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">گزارش‌های نورد</div>
+        <div class="table-wrap"><table><thead><tr><th>تاریخ</th><th>شیفت</th><th>ماشین</th><th>کویل</th><th>ضخامت خروجی</th><th>وزن خروجی</th><th>اسکراپ</th><th>اپراتور</th></tr></thead>
+        <tbody id="rolling-list"></tbody></table></div>
+      </div>
+    </div>
+
+    <!-- SEPARATOR REPORT -->
+    <div id="tab-separator" class="tab-content">
+      <div class="sec-head">
+        <h2>گزارش سپراتور</h2>
+        <button class="btn btn-primary btn-sm" onclick="toggleSepForm()">➕ ثبت گزارش</button>
+      </div>
+      <div id="sep-form-wrap" style="display:none">
+        <div class="card">
+          <div class="card-title">ثبت گزارش سپراتور</div>
+          <div class="form-row triple">
+            <div class="fld"><label>تاریخ *</label><input id="s-date" type="date"></div>
+            <div class="fld"><label>شیفت *</label>
+              <select id="s-shift"><option value="">انتخاب</option><option value="A">A — صبح</option><option value="B">B — عصر</option><option value="C">C — شب</option></select>
+            </div>
+            <div class="fld"><label>ماشین *</label>
+              <select id="s-machine"><option value="">انتخاب</option><option>سپراتور ۱</option><option>سپراتور ۲</option><option>سپراتور ۳</option></select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="fld"><label>شماره کویل *</label><input id="s-coil" placeholder="شماره کویل"></div>
+            <div class="fld"><label>اپراتور</label><input id="s-op" placeholder="نام اپراتور"></div>
+          </div>
+          <hr class="section-sep">
+          <div class="form-row triple">
+            <div class="fld"><label>ضخامت (mm)</label><input id="s-thick" type="number" step="0.001"></div>
+            <div class="fld"><label>عرض ورودی (mm)</label><input id="s-width-in" type="number"></div>
+            <div class="fld"><label>عرض خروجی (mm)</label><input id="s-width-out" type="number"></div>
+          </div>
+          <div class="form-row triple">
+            <div class="fld"><label>وزن ورودی (kg)</label><input id="s-wt-in" type="number" step="0.1"></div>
+            <div class="fld"><label>وزن خروجی (kg)</label><input id="s-wt-out" type="number" step="0.1"></div>
+            <div class="fld"><label>اسکراپ (kg)</label><input id="s-scrap" type="number" step="0.1"></div>
+          </div>
+          <div class="form-row triple">
+            <div class="fld"><label>شماره بابین</label><input id="s-bobbin" placeholder="شماره بابین"></div>
+            <div class="fld"><label>قطر داخلی (mm)</label><input id="s-id" type="number"></div>
+            <div class="fld"><label>قطر خارجی (mm)</label><input id="s-od" type="number"></div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:12px">
+            <button class="btn btn-primary" onclick="saveSeparator()">💾 ذخیره گزارش</button>
+            <button class="btn" style="background:var(--border);color:var(--text)" onclick="toggleSepForm()">انصراف</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">گزارش‌های سپراتور</div>
+        <div class="table-wrap"><table><thead><tr><th>تاریخ</th><th>شیفت</th><th>ماشین</th><th>کویل</th><th>ضخامت</th><th>وزن خروجی</th><th>اسکراپ</th></tr></thead>
+        <tbody id="sep-list"></tbody></table></div>
+      </div>
+    </div>
+
+    <!-- STOPPAGE -->
+    <div id="tab-stoppage" class="tab-content">
+      <div class="sec-head">
+        <h2>ثبت توقف</h2>
+        <button class="btn btn-primary btn-sm" onclick="toggleStopForm()">➕ ثبت توقف</button>
+      </div>
+      <div id="stop-form-wrap" style="display:none">
+        <div class="card">
+          <div class="card-title">ثبت توقف جدید</div>
+          <div class="form-row triple">
+            <div class="fld"><label>تاریخ *</label><input id="st-date" type="date"></div>
+            <div class="fld"><label>شیفت *</label>
+              <select id="st-shift"><option value="">انتخاب</option><option value="A">A — صبح</option><option value="B">B — عصر</option><option value="C">C — شب</option></select>
+            </div>
+            <div class="fld"><label>ماشین *</label><input id="st-machine" placeholder="نام ماشین"></div>
+          </div>
+          <div class="form-row">
+            <div class="fld"><label>کد توقف</label><input id="st-code" placeholder="کد علت"></div>
+            <div class="fld"><label>نوع توقف</label>
+              <select id="st-type"><option value="">انتخاب</option><option>مکانیکی</option><option>الکتریکی</option><option>فرایندی</option><option>کیفی</option><option>اپراتوری</option></select>
+            </div>
+          </div>
+          <div class="form-row triple">
+            <div class="fld"><label>ساعت شروع</label><input id="st-start" type="time"></div>
+            <div class="fld"><label>ساعت پایان</label><input id="st-end" type="time"></div>
+            <div class="fld"><label>مدت (دقیقه)</label><input id="st-dur" type="number"></div>
+          </div>
+          <div class="form-row">
+            <div class="fld"><label>شرح توقف</label><textarea id="st-desc" placeholder="توضیحات..."></textarea></div>
+            <div class="fld"><label>اقدام انجام شده</label><textarea id="st-action" placeholder="اقدام اصلاحی..."></textarea></div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:12px">
+            <button class="btn btn-primary" onclick="saveStoppage()">💾 ذخیره</button>
+            <button class="btn" style="background:var(--border);color:var(--text)" onclick="toggleStopForm()">انصراف</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">لیست توقفات</div>
+        <div class="table-wrap"><table><thead><tr><th>تاریخ</th><th>شیفت</th><th>ماشین</th><th>نوع</th><th>مدت</th><th>شرح</th></tr></thead>
+        <tbody id="stop-list"></tbody></table></div>
+      </div>
+    </div>
+
+    <!-- REPORTS -->
+    <div id="tab-reports" class="tab-content">
+      <div class="card">
+        <div class="card-title">فیلتر گزارش</div>
+        <div class="form-row">
+          <div class="fld"><label>از تاریخ</label><input id="rpt-from" type="date"></div>
+          <div class="fld"><label>تا تاریخ</label><input id="rpt-to" type="date"></div>
+        </div>
+        <div class="form-row">
+          <div class="fld"><label>بخش</label>
+            <select id="rpt-dept"><option value="">همه</option><option value="rolling">نورد</option><option value="separator">سپراتور</option></select>
+          </div>
+          <div class="fld"><label>شیفت</label>
+            <select id="rpt-shift"><option value="">همه</option><option value="A">A</option><option value="B">B</option><option value="C">C</option></select>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="loadReport()">🔍 نمایش گزارش</button>
+      </div>
+      <div id="report-output"></div>
+    </div>
+
+    <!-- HISTORY -->
+    <div id="tab-history" class="tab-content">
+      <div class="card">
+        <div class="card-title">تاریخچه تغییرات</div>
+        <div class="table-wrap"><table><thead><tr><th>زمان</th><th>جدول</th><th>عملیات</th><th>کاربر</th></tr></thead>
+        <tbody id="history-list"></tbody></table></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const SB_URL = 'https://iejlvamdxbapveeiihoi.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imllamx2YW1keGJhcHZlZWlpaG9pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3OTQyNzQsImV4cCI6MjEwNjM3MDI3NH0.u7qvVC9Zhy7Nkw9_a6pFSJM5rm6uw-3UHNeC3MwNEHQ';
+
+let sb, currentUser;
+
+/* ========== INIT ========== */
+async function initApp() {
+  sb = window.supabase.createClient(SB_URL, SB_KEY);
+
+  // Set today's date in header
+  document.getElementById('header-date').textContent = new Date().toLocaleDateString('fa-IR');
+
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    currentUser = session.user;
+    showApp();
+  } else {
+    showLogin();
+  }
+}
+
+function showLogin() {
+  document.getElementById('login-overlay').classList.add('active');
+  document.getElementById('app').classList.remove('active');
+}
+
+function showApp() {
+  document.getElementById('login-overlay').classList.remove('active');
+  document.getElementById('app').classList.add('active');
+  document.getElementById('user-name').textContent = currentUser?.email?.split('@')[0] || '';
+  loadDashboard();
+}
+
+/* ========== AUTH ========== */
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass  = document.getElementById('login-pass').value;
+  const btn   = document.getElementById('login-btn');
+  const err   = document.getElementById('login-error');
+
+  err.style.display = 'none';
+  btn.disabled = true;
+  btn.textContent = 'در حال ورود...';
+
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) {
+    err.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'ورود به سیستم';
+    return;
+  }
+  currentUser = data.user;
+  showApp();
+}
+
+async function doLogout() {
+  await sb.auth.signOut();
+  currentUser = null;
+  showLogin();
+}
+
+// Login on Enter key
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('login-overlay').classList.contains('active')) doLogin();
+});
+
+/* ========== TABS ========== */
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  btn.classList.add('active');
+  // Scroll nav so active tab is visible
+  btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+
+  // Load data for tab
+  if (id === 'dashboard') loadDashboard();
+  else if (id === 'coil') loadCoils();
+  else if (id === 'rolling') loadRolling();
+  else if (id === 'separator') loadSeparator();
+  else if (id === 'stoppage') loadStoppages();
+  else if (id === 'history') loadHistory();
+}
+
+/* ========== TOAST ========== */
+function toast(msg, dur = 2800) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), dur);
+}
+
+/* ========== DASHBOARD ========== */
+async function loadDashboard() {
+  const today = new Date().toISOString().slice(0, 10);
+
+  const [{ count: c1 }, { count: c2 }, { count: c3 }, { count: c4 }] = await Promise.all([
+    sb.from('coils').select('*', { count: 'exact', head: true }),
+    sb.from('rolling_reports').select('*', { count: 'exact', head: true }).eq('report_date', today),
+    sb.from('separator_reports').select('*', { count: 'exact', head: true }).eq('report_date', today),
+    sb.from('stoppages').select('*', { count: 'exact', head: true })
+  ]);
+
+  document.getElementById('stat-coils').textContent   = c1 ?? 0;
+  document.getElementById('stat-rolling').textContent = c2 ?? 0;
+  document.getElementById('stat-sep').textContent     = c3 ?? 0;
+  document.getElementById('stat-stop').textContent    = c4 ?? 0;
+
+  const { data: rr } = await sb.from('rolling_reports').select('*').order('created_at', { ascending: false }).limit(5);
+  const tbody1 = document.getElementById('dash-rolling');
+  tbody1.innerHTML = rr?.length ? rr.map(r =>
+    `<tr><td>${r.report_date}</td><td>${badge(r.shift)}</td><td>${r.machine_name||'—'}</td><td>${r.coil_number||'—'}</td><td>${r.operator_name||'—'}</td></tr>`
+  ).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--muted)">داده‌ای ثبت نشده</td></tr>';
+
+  const { data: sr } = await sb.from('separator_reports').select('*').order('created_at', { ascending: false }).limit(5);
+  const tbody2 = document.getElementById('dash-sep');
+  tbody2.innerHTML = sr?.length ? sr.map(r =>
+    `<tr><td>${r.report_date}</td><td>${badge(r.shift)}</td><td>${r.machine_name||'—'}</td><td>${r.coil_number||'—'}</td><td>${r.weight_output||'—'} kg</td></tr>`
+  ).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--muted)">داده‌ای ثبت نشده</td></tr>';
+}
+
+function badge(s) {
+  const cls = { A: 'badge-a', B: 'badge-b', C: 'badge-c' }[s] || '';
+  return `<span class="badge ${cls}">${s||''}</span>`;
+}
+
+/* ========== COILS ========== */
+function toggleCoilForm() {
+  const w = document.getElementById('coil-form-wrap');
+  w.style.display = w.style.display === 'none' ? 'block' : 'none';
+}
+
+async function loadCoils() {
+  const { data } = await sb.from('coils').select('*').order('created_at', { ascending: false }).limit(50);
+  const tbody = document.getElementById('coil-list');
+  tbody.innerHTML = data?.length ? data.map(r =>
+    `<tr><td><b>${r.coil_number}</b></td><td>${r.alloy||'—'}</td><td>${r.thickness_input||'—'}</td><td>${r.width_input||'—'}</td><td>${r.weight_input||'—'}</td><td>${r.product_type||'—'}</td></tr>`
+  ).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted)">کویلی ثبت نشده</td></tr>';
+}
+
+async function saveCoil() {
+  const num = document.getElementById('c-num').value.trim();
+  if (!num) { toast('⚠️ شماره کویل الزامی است'); return; }
+  const { error } = await sb.from('coils').insert({
+    coil_number: num,
+    order_number: v('c-order'), alloy: v('c-alloy'),
+    thickness_input: n('c-thick-in'), width_input: n('c-width'),
+    weight_input: n('c-wt-in'), hardness: v('c-hard'),
+    product_type: v('c-type'),
+    fe: n('c-fe'), si: n('c-si'), mn: n('c-mn'), cu: n('c-cu'),
+    uts: n('c-uts'), elongation: n('c-elong')
+  });
+  if (error) { toast('❌ خطا: ' + error.message); return; }
+  toast('✅ کویل ذخیره شد');
+  toggleCoilForm();
+  loadCoils();
+}
+
+/* ========== ROLLING ========== */
+function toggleRollingForm() {
+  const w = document.getElementById('rolling-form-wrap');
+  w.style.display = w.style.display === 'none' ? 'block' : 'none';
+  if (w.style.display === 'block') document.getElementById('r-date').value = todayISO();
+}
+
+async function loadRolling() {
+  const { data } = await sb.from('rolling_reports').select('*').order('created_at', { ascending: false }).limit(50);
+  const tbody = document.getElementById('rolling-list');
+  tbody.innerHTML = data?.length ? data.map(r =>
+    `<tr><td>${r.report_date}</td><td>${badge(r.shift)}</td><td>${r.machine_name||'—'}</td><td>${r.coil_number||'—'}</td><td>${r.thickness_output||'—'}</td><td>${r.weight_output||'—'}</td><td>${r.scrap||'—'}</td><td>${r.operator_name||'—'}</td></tr>`
+  ).join('') : '<tr><td colspan="8" style="text-align:center;color:var(--muted)">گزارشی ثبت نشده</td></tr>';
+}
+
+async function saveRolling() {
+  const d = v('r-date'), sh = v('r-shift'), m = v('r-machine'), c = v('r-coil');
+  if (!d || !sh || !m || !c) { toast('⚠️ تاریخ، شیفت، ماشین و کویل الزامی است'); return; }
+  const { error } = await sb.from('rolling_reports').insert({
+    report_date: d, shift: sh, machine_name: m, coil_number: c,
+    thickness_input: n('r-thick-in'), thickness_output: n('r-thick-out'),
+    width_input: n('r-width-in'), width_output: n('r-width-out'),
+    weight_input: n('r-wt-in'), weight_output: n('r-wt-out'),
+    scrap: n('r-scrap'),
+    start_time: v('r-start') || null, end_time: v('r-end') || null,
+    stop_duration: n('r-stopmin'), stop_code: v('r-stopcode'),
+    operator_name: v('r-op1'), assistant_operator_name: v('r-op2')
+  });
+  if (error) { toast('❌ خطا: ' + error.message); return; }
+  toast('✅ گزارش نورد ذخیره شد');
+  toggleRollingForm();
+  loadRolling();
+}
+
+/* ========== SEPARATOR ========== */
+function toggleSepForm() {
+  const w = document.getElementById('sep-form-wrap');
+  w.style.display = w.style.display === 'none' ? 'block' : 'none';
+  if (w.style.display === 'block') document.getElementById('s-date').value = todayISO();
+}
+
+async function loadSeparator() {
+  const { data } = await sb.from('separator_reports').select('*').order('created_at', { ascending: false }).limit(50);
+  const tbody = document.getElementById('sep-list');
+  tbody.innerHTML = data?.length ? data.map(r =>
+    `<tr><td>${r.report_date}</td><td>${badge(r.shift)}</td><td>${r.machine_name||'—'}</td><td>${r.coil_number||'—'}</td><td>${r.thickness||'—'}</td><td>${r.weight_output||'—'}</td><td>${r.scrap||'—'}</td></tr>`
+  ).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted)">گزارشی ثبت نشده</td></tr>';
+}
+
+async function saveSeparator() {
+  const d = v('s-date'), sh = v('s-shift'), m = v('s-machine'), c = v('s-coil');
+  if (!d || !sh || !m || !c) { toast('⚠️ تاریخ، شیفت، ماشین و کویل الزامی است'); return; }
+  const { error } = await sb.from('separator_reports').insert({
+    report_date: d, shift: sh, machine_name: m, coil_number: c,
+    thickness: n('s-thick'),
+    width_input: n('s-width-in'), width_output: n('s-width-out'),
+    weight_input: n('s-wt-in'), weight_output: n('s-wt-out'),
+    scrap: n('s-scrap'),
+    bobbin_number: v('s-bobbin'),
+    inner_diameter: n('s-id'), outer_diameter: n('s-od'),
+    operator_name: v('s-op')
+  });
+  if (error) { toast('❌ خطا: ' + error.message); return; }
+  toast('✅ گزارش سپراتور ذخیره شد');
+  toggleSepForm();
+  loadSeparator();
+}
+
+/* ========== STOPPAGES ========== */
+function toggleStopForm() {
+  const w = document.getElementById('stop-form-wrap');
+  w.style.display = w.style.display === 'none' ? 'block' : 'none';
+  if (w.style.display === 'block') document.getElementById('st-date').value = todayISO();
+}
+
+async function loadStoppages() {
+  const { data } = await sb.from('stoppages').select('*').order('created_at', { ascending: false }).limit(50);
+  const tbody = document.getElementById('stop-list');
+  tbody.innerHTML = data?.length ? data.map(r =>
+    `<tr><td>${r.stoppage_date}</td><td>${badge(r.shift)}</td><td>${r.machine_name||'—'}</td><td>${r.stoppage_type||'—'}</td><td>${r.duration_minutes||'—'} دقیقه</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${r.description||'—'}</td></tr>`
+  ).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted)">توقفی ثبت نشده</td></tr>';
+}
+
+async function saveStoppage() {
+  const d = v('st-date'), sh = v('st-shift'), m = v('st-machine');
+  if (!d || !sh || !m) { toast('⚠️ تاریخ، شیفت و ماشین الزامی است'); return; }
+  const { error } = await sb.from('stoppages').insert({
+    stoppage_date: d, shift: sh, machine_name: m,
+    stoppage_code: v('st-code'), stoppage_type: v('st-type'),
+    start_time: v('st-start') || null, end_time: v('st-end') || null,
+    duration_minutes: n('st-dur'),
+    description: v('st-desc'), action_taken: v('st-action')
+  });
+  if (error) { toast('❌ خطا: ' + error.message); return; }
+  toast('✅ توقف ذخیره شد');
+  toggleStopForm();
+  loadStoppages();
+}
+
+/* ========== REPORTS ========== */
+async function loadReport() {
+  const from = v('rpt-from'), to = v('rpt-to');
+  const dept = v('rpt-dept'), shift = v('rpt-shift');
+  const out = document.getElementById('report-output');
+  out.innerHTML = '<div class="loading"><div class="spinner"></div>در حال بارگذاری...</div>';
+
+  let rollQ = sb.from('rolling_reports').select('*').order('report_date');
+  let sepQ  = sb.from('separator_reports').select('*').order('report_date');
+  if (from) { rollQ = rollQ.gte('report_date', from); sepQ = sepQ.gte('report_date', from); }
+  if (to)   { rollQ = rollQ.lte('report_date', to);   sepQ = sepQ.lte('report_date', to); }
+  if (shift){ rollQ = rollQ.eq('shift', shift);        sepQ = sepQ.eq('shift', shift); }
+
+  let html = '';
+  if (!dept || dept === 'rolling') {
+    const { data: rr } = await rollQ;
+    const tw = rr?.reduce((s, r) => s + (r.weight_output || 0), 0).toFixed(1);
+    const ts = rr?.reduce((s, r) => s + (r.scrap || 0), 0).toFixed(1);
+    html += `<div class="card"><div class="card-title">گزارش نورد — ${rr?.length||0} رکورد | تولید کل: ${tw} kg | اسکراپ: ${ts} kg</div>
+    <div class="table-wrap"><table><thead><tr><th>تاریخ</th><th>شیفت</th><th>ماشین</th><th>کویل</th><th>ضخامت خروجی</th><th>وزن خروجی</th><th>اسکراپ</th></tr></thead>
+    <tbody>${rr?.length ? rr.map(r=>`<tr><td>${r.report_date}</td><td>${badge(r.shift)}</td><td>${r.machine_name||'—'}</td><td>${r.coil_number||'—'}</td><td>${r.thickness_output||'—'}</td><td>${r.weight_output||'—'}</td><td>${r.scrap||'—'}</td></tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted)">نتیجه‌ای یافت نشد</td></tr>'}</tbody></table></div></div>`;
+  }
+  if (!dept || dept === 'separator') {
+    const { data: sr } = await sepQ;
+    const tw = sr?.reduce((s, r) => s + (r.weight_output || 0), 0).toFixed(1);
+    const ts = sr?.reduce((s, r) => s + (r.scrap || 0), 0).toFixed(1);
+    html += `<div class="card"><div class="card-title">گزارش سپراتور — ${sr?.length||0} رکورد | تولید کل: ${tw} kg | اسکراپ: ${ts} kg</div>
+    <div class="table-wrap"><table><thead><tr><th>تاریخ</th><th>شیفت</th><th>ماشین</th><th>کویل</th><th>ضخامت</th><th>وزن خروجی</th><th>اسکراپ</th></tr></thead>
+    <tbody>${sr?.length ? sr.map(r=>`<tr><td>${r.report_date}</td><td>${badge(r.shift)}</td><td>${r.machine_name||'—'}</td><td>${r.coil_number||'—'}</td><td>${r.thickness||'—'}</td><td>${r.weight_output||'—'}</td><td>${r.scrap||'—'}</td></tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted)">نتیجه‌ای یافت نشد</td></tr>'}</tbody></table></div></div>`;
+  }
+  out.innerHTML = html || '<div class="card"><p style="text-align:center;color:var(--muted)">فیلتری اعمال نشده</p></div>';
+}
+
+/* ========== HISTORY ========== */
+async function loadHistory() {
+  const { data } = await sb.from('change_history').select('*').order('changed_at', { ascending: false }).limit(50);
+  const tbody = document.getElementById('history-list');
+  tbody.innerHTML = data?.length ? data.map(r => {
+    const dt = new Date(r.changed_at).toLocaleString('fa-IR');
+    const actMap = { INSERT: '➕ ثبت', UPDATE: '✏️ ویرایش', DELETE: '🗑️ حذف' };
+    return `<tr><td style="font-size:.78rem">${dt}</td><td>${r.table_name||'—'}</td><td>${actMap[r.action]||r.action}</td><td style="font-size:.78rem">${r.changed_by||'—'}</td></tr>`;
+  }).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--muted)">تاریخچه‌ای وجود ندارد</td></tr>';
+}
+
+/* ========== HELPERS ========== */
+const v  = id => document.getElementById(id)?.value?.trim() || '';
+const n  = id => { const val = document.getElementById(id)?.value; return val ? parseFloat(val) : null; };
+const todayISO = () => new Date().toISOString().slice(0, 10);
+
+/* ========== START ========== */
+window.addEventListener('load', initApp);
+</script>
+</body>
+</html>
